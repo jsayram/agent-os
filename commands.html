@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slash Commands</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --fg: #1d2320; --muted: #5f6a64; --bg: #f6f6f3; --panel: #ffffff; --line: #dfe3de;
+  --accent: #d97757; --ok: #1f7a4d; --warn: #9a5b00;
+  --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+  --serif: "New York", "Iowan Old Style", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --fg: #e7ece9; --muted: #9aa59f; --bg: #121514; --panel: #1b1f1d; --line: #2c3430; --accent: #e08a6c; --ok: #7fd8a6; --warn: #f2bd63; }
+}
+:root[data-theme="dark"] { --fg: #e7ece9; --muted: #9aa59f; --bg: #121514; --panel: #1b1f1d; --line: #2c3430; --accent: #e08a6c; --ok: #7fd8a6; --warn: #f2bd63; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+h1 { font: 400 30px/1.15 var(--serif); margin: 0; }
+header a { color: var(--muted); text-decoration: none; font-size: 13px; }
+header a:hover { color: var(--fg); }
+.sub { color: var(--muted); margin: 6px 0 18px; }
+.search { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 12px; }
+.search input { width: 100%; font: inherit; font-size: 17px; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; outline: none; }
+.search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.chips button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; cursor: pointer; }
+.chips button[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.chips select { font: inherit; font-size: 12px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; cursor: pointer; max-width: 100%; }
+.chips select.on { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.tag.codex { color: #5b8def; border-color: color-mix(in srgb, #5b8def 45%, transparent); }
+.tag.proj { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.chips .count { margin-left: auto; color: var(--muted); font-size: 12px; }
+.list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
+.card .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card code { font: 600 14px var(--mono); color: var(--accent); word-break: break-all; }
+.card .args { font: 12px var(--mono); color: var(--muted); }
+.card p { margin: 0; color: var(--fg); }
+.card p.more { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card.open p.more { display: block; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; }
+.tag.term { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.tag.mine { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+mark { background: color-mix(in srgb, var(--accent) 28%, transparent); color: inherit; border-radius: 2px; }
+.empty { color: var(--muted); padding: 24px 0; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); border-radius: 999px; padding: 6px 14px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 20px; }
+kbd { font: 11px var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Slash commands</h1>
+    <a href="./">← Agent OS</a>
+  </header>
+  <p class="sub">Built-in Claude Code commands plus every Claude and Codex skill you've installed. Codex skills start with $, the way you mention them in Codex. Type what you want to do, like "shrink context", "review my diff" or "make a video". Click a card to copy the command.</p>
+
+  <div class="search">
+    <input id="q" type="search" placeholder="What do you want to do?  (press / to search)" aria-label="Search commands and skills" autocomplete="off" autofocus>
+    <div class="chips" role="group" aria-label="Filter by source">
+      <button type="button" data-f="all" aria-pressed="true">All</button>
+      <button type="button" data-f="builtin" aria-pressed="false">Built-in</button>
+      <button type="button" data-f="mine" aria-pressed="false">My skills</button>
+      <button type="button" data-f="plugin" aria-pressed="false">Plugins</button>
+      <button type="button" data-f="codex" aria-pressed="false">Codex</button>
+      <select id="proj" aria-label="Show one project's skills"><option value="">Projects…</option></select>
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+  <p class="foot">Claude skills are read from <code>~/.claude/skills</code>, <code>~/.claude/commands</code> and enabled plugins; Codex skills from <code>~/.codex/skills</code> and <code>~/.agents/skills</code>; project skills from <code>.claude/skills</code> and <code>.agents/skills</code> in every project you've opened in Claude Code or Codex each time Agent OS collects (every minute). Commands tagged <span class="tag term">Terminal only</span> open a dialog that the desktop app's Code tab doesn't show, so run them from <kbd>claude</kbd> in a terminal.</p>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// Built-in commands. `t` holds extra words people search with, so "what I want to do" matches.
+const BUILTIN = [
+  ['/help', 'List the commands available in this session.', 'help commands list what can i do'],
+  ['/clear', 'Start a fresh conversation and drop the current context.', 'reset new chat start over wipe forget'],
+  ['/compact', 'Summarize the conversation so far to free up context. Add instructions to steer what it keeps.', 'context full shrink summarize long conversation tokens memory', '[instructions]'],
+  ['/context', 'Show how full the context window is and what is using it.', 'tokens usage space window how much left'],
+  ['/cost', 'Show token use and cost for this session.', 'tokens price spend money billing'],
+  ['/usage', 'Show your plan usage and rate-limit status.', 'limits quota plan tokens how much left billing'],
+  ['/model', 'Switch the model for this session (Opus, Sonnet, Haiku…).', 'change model opus sonnet haiku fable smarter faster cheaper'],
+  ['/fast', 'Toggle fast mode: same Opus model, faster output.', 'speed quick faster responses'],
+  ['/resume', 'Pick up a previous conversation.', 'continue old session history reopen past chat'],
+  ['/rewind', 'Roll the conversation and code back to an earlier point.', 'undo go back checkpoint restore revert mistake'],
+  ['/export', 'Export the conversation to a file or the clipboard.', 'save transcript copy share conversation'],
+  ['/init', 'Scan the project and write a CLAUDE.md with its conventions.', 'setup new project claude.md onboarding instructions'],
+  ['/memory', 'Edit your CLAUDE.md memory files.', 'remember instructions preferences claude.md notes'],
+  ['/add-dir', 'Give this session access to another folder.', 'folder directory workspace access another repo', '<path>'],
+  ['/review', 'Review a pull request.', 'pr pull request code review check', '[PR]'],
+  ['/code-review', 'Review the current diff, a branch or a PR for bugs at a chosen effort. "ultra" runs a deep multi-agent review in the cloud. --fix applies the findings, --comment posts them on the PR.', 'review diff bugs check my code pr ultrareview quality', '[low|medium|high|xhigh|max|ultra] [PR#] [--fix]'],
+  ['/security-review', 'Security review of the pending changes on the current branch.', 'vulnerabilities security audit secrets injection safe'],
+  ['/simplify', 'Clean up changed code for reuse, simplicity and efficiency, then apply the fixes. Doesn\'t hunt bugs.', 'refactor cleanup tidy simplify code quality'],
+  ['/pr-comments', 'Pull in the comments from a GitHub pull request.', 'pr feedback github review comments'],
+  ['/loop', 'Run a prompt or command on a repeating interval, or let Claude pace itself.', 'repeat recurring poll every minutes watch keep checking', '[interval] <prompt>'],
+  ['/schedule', 'Create, list or run scheduled cloud agents (routines) on a cron schedule, or a one-off run later.', 'cron routine later recurring remind automate timer'],
+  ['/agents', 'Create and manage subagents.', 'subagent helper custom agent create'],
+  ['/mcp', 'Manage MCP servers and sign in to them.', 'connectors servers tools integrations authorize oauth'],
+  ['/plugin', 'Browse, install and manage plugins.', 'plugins marketplace install extensions add skills'],
+  ['/hooks', 'Set up hooks that run on tool calls and other events.', 'automation events before after trigger script', '', true],
+  ['/permissions', 'View and edit tool allow and deny rules.', 'allow deny prompts approvals trust rules', '', true],
+  ['/config', 'Open settings: theme, model, editor mode and more.', 'settings preferences options theme', '', true],
+  ['/doctor', 'Check your Claude Code install for problems.', 'diagnose broken fix install health troubleshoot', '', true],
+  ['/status', 'Show version, model, account and connection status.', 'info version account whoami'],
+  ['/statusline', 'Set up a custom status line.', 'status bar prompt line customize'],
+  ['/output-style', 'Switch the output style (default, explanatory, learning…).', 'tone format style responses explain'],
+  ['/vim', 'Toggle vim editing mode for the prompt.', 'vim keys editor mode'],
+  ['/terminal-setup', 'Set up Shift+Enter for new lines in your terminal.', 'newline shift enter keyboard terminal', '', true],
+  ['/ide', 'Connect to an IDE like VS Code or Xcode.', 'vscode jetbrains editor integration'],
+  ['/install-github-app', 'Set up the Claude GitHub app for a repo.', 'github actions ci bot install'],
+  ['/artifacts', 'List your published artifacts. o opens one, c copies its link.', 'pages published links artifacts gallery'],
+  ['/release-notes', 'See what changed in recent Claude Code versions.', 'changelog whats new updates version'],
+  ['/bug', 'Send feedback or report a bug to Anthropic.', 'feedback report problem issue'],
+  ['/login', 'Sign in or switch accounts.', 'sign in account auth switch'],
+  ['/logout', 'Sign out.', 'sign out account'],
+  ['/exit', 'Quit Claude Code.', 'quit close leave'],
+  ['/fewer-permission-prompts', 'Scan your history for common read-only commands and add them to an allowlist.', 'stop asking approvals prompts allowlist permissions annoying'],
+  ['/update-config', 'Change settings.json: permissions, env vars, hooks ("whenever X do Y").', 'settings hooks automate env permissions configure always'],
+  ['/keybindings-help', 'Customize keyboard shortcuts in ~/.claude/keybindings.json.', 'shortcuts keys rebind hotkeys'],
+  ['/claude-api', 'Reference for the Claude API and SDKs: models, pricing, tools, caching.', 'anthropic api sdk build ai app llm models pricing'],
+  ['/run', 'Launch and drive this project\'s app to see a change working.', 'start app run test it screenshot launch dev server'],
+  ['/plugin-authoring', 'Make a mod: a pane, status line, slash command or hook for Claude itself.', 'mod customize extend plugin hook command build'],
+  ['/workflow-authoring', 'Reference for writing multi-agent workflow scripts.', 'workflow multi agent orchestration parallel ultracode'],
+].map(([name, description, tags, args = '', term = false]) => ({ name, description, tags, args, terminalOnly: term, source: 'Built-in', kind: 'builtin' }));
+
+let mine = [];
+let filter = 'all';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function highlight(text, words) {
+  let out = esc(text);
+  for (const w of words) {
+    if (w.length < 2) continue;
+    out = out.replace(new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>');
+  }
+  return out;
+}
+
+// Every word must appear somewhere; hits in the name count most, then tags, then the description.
+function score(item, words) {
+  const name = item.name.toLowerCase(), tags = (item.tags || '').toLowerCase(), desc = item.description.toLowerCase(), src = item.source.toLowerCase();
+  let s = 0;
+  for (const w of words) {
+    const stem = w.length > 4 ? w.replace(/(ing|ed|es|s)$/, '') : w;
+    const hit = (t) => t.includes(w) || t.includes(stem);
+    if (hit(name)) s += 6; else if (hit(tags)) s += 3; else if (hit(desc)) s += 1; else if (hit(src)) s += 1; else return 0;
+  }
+  return s;
+}
+
+function render() {
+  const q = $('q').value.trim().toLowerCase().replace(/^[\/$]/, '');
+  const words = q.split(/\s+/).filter(Boolean);
+  const proj = $('proj').value;
+  let items = BUILTIN.concat(mine).filter((i) => proj ? i.project === proj : (filter === 'all' || i.kind === filter));
+  if (words.length) {
+    items = items.map((i) => [i, score(i, words)]).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]).map(([i]) => i);
+  }
+  $('count').textContent = items.length + (items.length === 1 ? ' match' : ' matches');
+  $('list').innerHTML = items.length ? items.map((i) => `
+    <button type="button" class="card" data-cmd="${esc(i.name)}" title="Click to copy ${esc(i.name)}">
+      <span class="top"><code>${highlight(i.name, words)}</code>${i.args ? `<span class="args">${esc(i.args)}</span>` : ''}</span>
+      <p class="${i.description.length > 180 ? 'more' : ''}">${highlight(i.description || 'No description.', words)}</p>
+      <span class="tags"><span class="tag ${i.kind === 'mine' ? 'mine' : i.kind === 'project' ? 'proj' : ''}">${esc(i.source)}</span>${i.app === 'Codex' ? '<span class="tag codex">Codex</span>' : ''}${i.terminalOnly ? '<span class="tag term">Terminal only</span>' : ''}${i.manualOnly ? '<span class="tag">Only when you type it</span>' : ''}</span>
+    </button>`).join('') : `<p class="empty">Nothing matches "${esc(q)}". Try fewer or different words.</p>`;
+}
+
+async function loadSkills() {
+  try {
+    const r = await fetch('data/skills.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    mine = (await r.json()).map((s) => ({ ...s, kind: s.project ? 'project' : s.app === 'Codex' ? 'codex' : s.source.startsWith('Plugin') ? 'plugin' : 'mine' }));
+    // one option per project that has skills, keeping the current pick
+    const sel = $('proj'), keep = sel.value, counts = {};
+    for (const s of mine) if (s.project) counts[s.project] = (counts[s.project] || 0) + 1;
+    sel.replaceChildren(new Option(Object.keys(counts).length ? 'Projects…' : 'No project skills', ''),
+      ...Object.keys(counts).sort().map((p) => new Option(p + ' (' + counts[p] + ')', p)));
+    sel.value = counts[keep] ? keep : '';
+    sel.classList.toggle('on', !!sel.value);
+  } catch (e) {
+    $('count').textContent = 'Could not read your skills. Is serve.py running?';
+  }
+  render();
+}
+
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1400); }
+
+$('list').addEventListener('click', async (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  card.classList.add('open');
+  try { await navigator.clipboard.writeText(card.dataset.cmd); toast('Copied ' + card.dataset.cmd); }
+  catch { toast(card.dataset.cmd); }
+});
+document.querySelector('.chips').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-f]');
+  if (!b) return;
+  filter = b.dataset.f;
+  $('proj').value = ''; $('proj').classList.remove('on');
+  document.querySelectorAll('.chips button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  render();
+});
+$('proj').addEventListener('change', () => {
+  const on = !!$('proj').value;
+  $('proj').classList.toggle('on', on);
+  if (!on) filter = 'all';
+  document.querySelectorAll('.chips button').forEach((x) => x.setAttribute('aria-pressed', String(!on && x.dataset.f === filter)));
+  render();
+});
+$('q').addEventListener('input', render);
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && document.activeElement !== $('q')) { e.preventDefault(); $('q').focus(); $('q').select(); }
+  if (e.key === 'Escape' && document.activeElement === $('q')) { $('q').value = ''; render(); }
+});
+render();
+loadSkills();
+setInterval(loadSkills, 60000);
+// serve.py pushes an `update` after every collect; reload instead when this page's own code changed.
+if (window.EventSource) {
+  let built = null;
+  const es = new EventSource('events');
+  const check = (e) => { const h = JSON.parse(e.data).commands; if (built && h !== built) location.reload(); built = h; };
+  es.addEventListener('hello', check);
+  es.addEventListener('update', (e) => { check(e); loadSkills(); });
+}
+</script>
+</body>
+</html>

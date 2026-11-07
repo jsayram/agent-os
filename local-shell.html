@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent OS</title>
+<style>
+/* Stand-ins for the dashboard's theme tokens, so the same page runs locally */
+:root {
+  color-scheme: light dark;
+  --color-fg: #1d2320; --color-fg-muted: #5f6a64; --color-bg: #f6f6f3; --color-panel: #ffffff;
+  --color-border-line: #dfe3de; --color-ok: #1f7a4d; --color-warn: #9a5b00; --color-bad: #b3261e;
+  --font-anthropic-sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+  --font-anthropic-serif: "New York", "Iowan Old Style", Georgia, serif;
+  --cds-radius: 12px; --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 18px;
+  --cds-pad-xs: 6px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 16px;
+  --cds-font-size-caption: 12px; --cds-font-size-body: 14px; --cds-font-size-heading: 16px; --cds-font-size-title: 30px;
+  --cds-font-weight-medium: 600; --cds-chart-muted: #b9c0bb; --cds-chart-grid: #e7eae6; --cds-chart-axis: #c4cac5;
+  --cds-surface-popover: #ffffff; --cds-border: #dfe3de; --cds-shadow-popover: 0 6px 20px rgba(0,0,0,.12);
+  --cds-text-secondary: #5f6a64; --cds-dur-slow: .3s; --cds-ease-out: cubic-bezier(.2,.8,.2,1);
+  --aos-c1: #d97757; --aos-c2: #5b8def;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fg: #e7ece9; --color-fg-muted: #9aa59f; --color-bg: #121514; --color-panel: #1b1f1d;
+    --color-border-line: #2c3430; --color-ok: #7fd8a6; --color-warn: #f2bd63; --color-bad: #ff9f96;
+    --cds-chart-muted: #4a524e; --cds-chart-grid: #262c29; --cds-chart-axis: #3a423e;
+    --cds-surface-popover: #222725; --cds-border: #2c3430; --cds-text-secondary: #9aa59f;
+    --aos-c1: #e08a6c; --aos-c2: #7aa5ff;
+  }
+}
+body { margin: 0; background: var(--color-bg); color: var(--color-fg); }
+#dash-root { padding: 20px max(16px, 3vw) 40px; max-width: 1900px; margin: 0 auto; }
+.dash-skeleton:empty, .dash-skeleton { color: transparent; }
+.dash-skeleton:empty { min-height: 1em; border-radius: 6px; background: color-mix(in srgb, var(--color-fg-muted) 14%, transparent); }
+.aos-live { position: fixed; top: 12px; right: 12px; z-index: 10; display: flex; align-items: center; gap: 8px; font: 12px var(--font-anthropic-sans); color: var(--color-fg-muted); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: 999px; padding: 3px 3px 3px 12px; }
+.aos-live button { font: inherit; font-weight: 600; color: var(--color-bg); background: var(--color-fg); border: 0; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.aos-live button:disabled { opacity: .6; cursor: progress; }
+.aos-live button.aos-hard { color: var(--color-fg); background: transparent; box-shadow: inset 0 0 0 1px var(--color-border-line); }
+</style>
+<!--D3-->
+<script>
+// A minimal stand-in for the dashboard's `dash` object: reads ./data/*.json every minute, and right away after a Refresh click.
+(() => {
+  const store = {}, calcs = {}, subs = [];
+  const IDS = ['agents', 'commands', 'tasks', 'timeline', 'usage', 'processes', 'snapshot', 'todos', 'testruns'];
+  const result = (id) => store[id] || { status: 'loading', data: [], columns: [], meta: [], refreshing: false };
+  function runCalcs() {
+    for (const [id, c] of Object.entries(calcs)) {
+      const ins = c.inputs.map(result);
+      if (ins.some((r) => r.status !== 'ok')) { store[id] = { status: ins.find((r) => r.status !== 'ok').status, data: [] }; continue; }
+      try { store[id] = { status: 'ok', data: c.fn(...ins.map((r) => r.data)), meta: [] }; }
+      catch (e) { store[id] = { status: 'error', data: [], message: String(e) }; }
+    }
+  }
+  const fire = () => { runCalcs(); for (const f of subs) { try { f(); } catch (e) { console.error(e); } } };
+  let lastOk = 0;
+  async function load() {
+    await Promise.all(IDS.map(async (id) => {
+      try {
+        const r = await fetch('data/' + id + '.json?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        store[id] = { status: 'ok', data, columns: data[0] ? Object.keys(data[0]) : [], meta: [], refreshing: false };
+      } catch (e) { if (!store[id] || store[id].status !== 'ok') store[id] = { status: 'error', data: [], message: String(e) }; }
+    }));
+    lastOk = Date.now();
+    fire();
+  }
+  window.dash = {
+    colors: ['var(--aos-c1)', 'var(--aos-c2)', '#8a5bb8', '#2e9a8a', '#c9a227', '#b04a7a', '#5a6f7a', '#4f8a5b'],
+    data: result,
+    onData: (fn) => { subs.push(fn); try { fn(); } catch (e) { console.error(e); } },
+    calc: (id, c) => { calcs[id] = c; },
+    loader: () => {},
+    refresh: () => load(),
+    params: () => ({}), setParams: () => {}, resetParams: () => {},
+    setLink: (name) => { history.replaceState(null, '', '#' + name); },
+  };
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(fire, 150); });
+  load().then(() => label()); setInterval(() => load().then(() => label()), 60000);
+  // Refresh: serve.py reruns collect.py now, then the page rereads the data.
+  const ago = () => { const s = Math.round((Date.now() - lastOk) / 1000); return s < 60 ? 'just now' : Math.round(s / 60) + ' min ago'; };
+  let live = false;
+  const label = () => { const t = document.getElementById('aos-live-text'); if (t && lastOk) t.textContent = (live ? 'Live · read ' : 'Read ') + ago(); };
+  setInterval(label, 15000);
+  // serve.py pushes an `update` after every collect; reload instead when this page's own code changed.
+  if (window.EventSource) {
+    let built = null;
+    const es = new EventSource('events');
+    const check = (e) => { const h = JSON.parse(e.data).local; if (built && h !== built) location.reload(); built = h; };
+    es.addEventListener('hello', (e) => { live = true; check(e); label(); });
+    es.addEventListener('update', (e) => { check(e); load().then(label); });
+    es.onerror = () => { live = false; label(); }; // the browser reconnects on its own
+  }
+  // The in-app browser drops claude:// and codex:// links, so "Open in …" asks serve.py to open them.
+  document.addEventListener('click', async (e) => {
+    const a = e.target.closest && e.target.closest('a.aos-open');
+    if (!a) return;
+    e.preventDefault(); e.stopPropagation();
+    try {
+      const r = await fetch('open', { method: 'POST', headers: { 'X-Agent-OS': '1' }, body: a.getAttribute('href') });
+      if (!r.ok) throw new Error(r.status);
+    } catch (err) { location.href = a.getAttribute('href'); }
+  }, true);
+  addEventListener('DOMContentLoaded', () => {
+    const txt = document.getElementById('aos-live-text');
+    const soft = document.getElementById('aos-refresh'), hard = document.getElementById('aos-hard');
+    // Refresh re-reads only the logs that changed; Hard refresh ignores the cache and re-reads them all.
+    const run = async (btn, endpoint, busy, idle) => {
+      soft.disabled = hard.disabled = true; btn.textContent = busy;
+      try {
+        const r = await fetch(endpoint, { method: 'POST', headers: { 'X-Agent-OS': '1' }, cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        await load(); label();
+      } catch (e) { txt.textContent = 'Refresh failed. Is serve.py running?'; }
+      soft.disabled = hard.disabled = false; btn.textContent = idle;
+    };
+    soft.addEventListener('click', () => run(soft, 'refresh', 'Collecting…', 'Refresh'));
+    hard.addEventListener('click', () => run(hard, 'rescan', 'Re-reading all logs…', 'Hard refresh'));
+  });
+})();
+</script>
+</head>
+<body>
+<div id="dash-root">
+<!--PAGE-->
+</div>
+<div class="aos-live"><a href="commands" style="color: inherit; font-weight: 600; text-decoration: none; padding-right: 4px;">/ Commands</a><span id="aos-live-text" aria-live="polite">On this Mac</span><button type="button" id="aos-refresh" title="Collect now, re-reading only the logs that changed (uses the cache)">Refresh</button><button type="button" id="aos-hard" class="aos-hard" title="Ignore the cache and re-read every log from scratch">Hard refresh</button></div>
+</body>
+</html>

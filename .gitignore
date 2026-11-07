@@ -1,0 +1,19 @@
+# Allow only reviewed source, release documentation, and bundled assets.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/agent_os_config.py
+!/claude_status.py
+!/collect.py
+!/commands.html
+!/index.html
+!/local-shell.html
+!/run_history.py
+!/serve.py
+!/todo.py
+!/token_usage.py
+!/vendor/
+/vendor/*
+!/vendor/d3.min.js
+!/vendor/d3.LICENSE
